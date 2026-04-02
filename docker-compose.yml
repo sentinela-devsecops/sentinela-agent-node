@@ -1,0 +1,114 @@
+# ============================================================
+# Sentinela DevSecOps — Docker Compose
+# Responsável (Infraestrutura Docker): Gustavo Martins
+#
+# Redes isoladas (arquitetura de segurança):
+#   agent-net : agente ↔ API Java
+#   api-net   : API Java ↔ React
+#   db-net    : API Java ↔ PostgreSQL (ISOLADA — sem acesso externo)
+#
+# Nenhuma variável secreta deve ser hardcoded aqui.
+# Use .env na raiz do projeto.
+# ============================================================
+
+version: '3.9'
+
+services:
+
+  # ── Agente Node.js (Gustavo Martins) ────────────────────
+  sentinela-agent:
+    build:
+      context: ./sentinela-agent
+      dockerfile: Dockerfile
+    container_name: sentinela-agent
+    restart: unless-stopped
+    env_file:
+      - ./sentinela-agent/.env
+    networks:
+      - agent-net
+    volumes:
+      # Monta o diretório que será monitorado (somente leitura)
+      - /var/app:/monitored:ro
+    depends_on:
+      sentinela-api:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+
+  # ── Servidor Java/Spring Boot (Isadora Lyra) ────────────
+  sentinela-api:
+    image: sentinela-api:latest
+    container_name: sentinela-api
+    restart: unless-stopped
+    env_file:
+      - ./sentinela-api/.env
+    networks:
+      - agent-net
+      - api-net
+      - db-net
+    ports:
+      - "8080:8080"
+    depends_on:
+      sentinela-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+
+  # ── Frontend React (João Paulo) ──────────────────────────
+  sentinela-frontend:
+    image: sentinela-frontend:latest
+    container_name: sentinela-frontend
+    restart: unless-stopped
+    networks:
+      - api-net
+    ports:
+      - "3000:80"
+    depends_on:
+      - sentinela-api
+
+  # ── PostgreSQL — Rede ISOLADA ────────────────────────────
+  sentinela-db:
+    image: postgres:16-alpine
+    container_name: sentinela-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       ${POSTGRES_DB:-sentinela}
+      POSTGRES_USER:     ${POSTGRES_USER:-sentinela}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}  # obrigatório no .env raiz
+    networks:
+      - db-net           # APENAS db-net — sem acesso externo
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sentinela}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    security_opt:
+      - no-new-privileges:true
+
+# ── Redes isoladas ─────────────────────────────────────────
+networks:
+  agent-net:
+    driver: bridge
+    internal: false   # agente precisa de saída para HTTPS → API
+  api-net:
+    driver: bridge
+    internal: false
+  db-net:
+    driver: bridge
+    internal: true    # ISOLADA — PostgreSQL sem acesso à internet
+
+# ── Volumes persistentes ───────────────────────────────────
+volumes:
+  db-data:
+    driver: local

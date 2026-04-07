@@ -46,9 +46,7 @@ O sistema é composto por **4 camadas** desenvolvidas por membros distintos do t
 
 ---
 
-## 2. O que cabe ao Gustavo Martins
-
-De acordo com a documentação de arquitetura, **Gustavo Martins é responsável por duas frentes**:
+## 2. O que cabe ao (Gustavo Martins)
 
 ### 🟢 Camada Agente — Node.js 18 LTS
 
@@ -73,7 +71,7 @@ Todos os módulos do agente que roda nos sistemas monitorados:
 | `Dockerfile` | Container do agente (Alpine, non-root) |
 | `docker-compose.yml` | Stack completa com redes isoladas |
 
-> **Importante:** O Gustavo **não implementa** a lógica do servidor Java, do frontend React nem as regras regex em si (essas são de Caio & André). Ele consome as regras e integra tudo no agente.
+> **Importante:** O (Node.js) **não implementa** a lógica do servidor Java, do frontend React nem as regras regex em si (essas são de Caio & André). Ele consome as regras e integra tudo no agente.
 
 ---
 
